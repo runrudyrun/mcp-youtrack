@@ -7,17 +7,19 @@ A Model Context Protocol (MCP) server for interacting with YouTrack issue tracki
 ### Example: add to Windsurf mcp_config.json
 ```json
 {
+  "mcpServers": {
     "mcp-youtrack": {
-        "command": "{PATH_TO_MCP_YOUTRACK}/mcp-youtrack/.venv/bin/mcp-youtrack",
-        "args": [
-            "run",
-            "--with",
-            "mcp-youtrack",
-            "--python",
-            "3.13",
-            "mcp-youtrack"
-        ]
+      "command": "{PATH_TO_MCP_YOUTRACK}/mcp-youtrack/.venv/bin/mcp-youtrack",
+      "args": [
+        "run",
+        "--with",
+        "mcp-youtrack",
+        "--python",
+        "3.13",
+        "mcp-youtrack"
+      ]
     }
+  }
 }
 ```
 
