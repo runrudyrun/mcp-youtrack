@@ -2,6 +2,25 @@
 
 A Model Context Protocol (MCP) server for interacting with YouTrack issue tracking system.
 
+# Demo
+
+### Example: add to Windsurf mcp_config.json
+```json
+{
+    "mcp-youtrack": {
+        "command": "{PATH_TO_MCP_YOUTRACK}/mcp-youtrack/.venv/bin/mcp-youtrack",
+        "args": [
+            "run",
+            "--with",
+            "mcp-youtrack",
+            "--python",
+            "3.13",
+            "mcp-youtrack"
+        ]
+    }
+}
+```
+
 ## Overview
 
 This repository provides a Model Context Protocol (MCP) server for YouTrack integration. It uses the youtrack-sdk to interact with the YouTrack API and provides tools for common operations like querying issues, adding comments, and updating issue fields.
@@ -103,26 +122,6 @@ The server includes comprehensive tests. Run tests with:
 ```bash
 pytest
 ```
-
-## Examples
-
-### Example: add to Windsurf mcp_config.json
-```json
-{
-    "mcp-youtrack": {
-        "command": "{PATH_TO_MCP_YOUTRACK}/mcp-youtrack/.venv/bin/mcp-youtrack",
-        "args": [
-            "run",
-            "--with",
-            "mcp-youtrack",
-            "--python",
-            "3.13",
-            "mcp-youtrack"
-        ]
-    }
-}
-```
-
 
 ## Contributing
 
