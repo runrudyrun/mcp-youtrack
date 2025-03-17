@@ -75,14 +75,19 @@ The MCP YouTrack server also provides an interactive command-line interface for 
 uv pip install -e ".[dev]"
 ```
 
-2. Run the interactive client:
+2. Run the interactive client using the provided helper script:
 ```bash
-uv run mcp-youtrack --interactive
+# Using the helper script (recommended)
+uv run ./interactive_client.py
+# With direct mode
+uv run ./interactive_client.py --direct
 ```
 
-3. Alternatively, you can run the interactive client in direct mode, which uses the MCP server directly without subprocess calls:
+3. Alternatively, you can use the Python module directly:
 ```bash
-uv run mcp-youtrack --interactive --direct
+uv run -m mcp_youtrack.run_interactive
+# With direct mode 
+uv run -m mcp_youtrack.run_interactive --direct
 ```
 
 The interactive client provides the following commands:
