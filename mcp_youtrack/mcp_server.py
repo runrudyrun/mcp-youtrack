@@ -484,13 +484,52 @@ def update_field(issue_id: str, field_id: str, field_value: Any) -> Dict[str, An
         if not target_field:
             return {"success": False, "error": f"Field {field_id} not found"}
         
-        # Update the field value
-        target_field.value = field_value
+        logger.info(f"Found field: {target_field}")
+        
+        # Create a new field instance with the updated value
+        field_type = type(target_field)
+        
+        # Handle different field types appropriately
+        if field_type.__name__ == "StateIssueCustomField":
+            from youtrack_sdk.entities import StateBundleElement
+            # For state fields, we need to create a StateBundleElement with the name
+            if isinstance(field_value, str):
+                # Create a new StateBundleElement with the provided name
+                new_value = StateBundleElement(name=field_value)
+            else:
+                new_value = field_value
+            
+            # Create a new field instance with the same ID but updated value
+            updated_field = field_type(id=target_field.id, name=target_field.name, value=new_value)
+        elif field_type.__name__ in ["SingleEnumIssueCustomField", "MultiEnumIssueCustomField"]:
+            from youtrack_sdk.entities import EnumBundleElement
+            # For enum fields, we need to create an EnumBundleElement with the name
+            if isinstance(field_value, str):
+                # Create a new EnumBundleElement with the provided name
+                new_value = EnumBundleElement(name=field_value)
+                # For multi-enum fields, wrap in a list
+                if field_type.__name__ == "MultiEnumIssueCustomField":
+                    new_value = [new_value]
+            else:
+                new_value = field_value
+            
+            # Create a new field instance with the same ID but updated value
+            updated_field = field_type(id=target_field.id, name=target_field.name, value=new_value)
+        else:
+            # For other field types, create a new instance with the same properties
+            # but with the updated value
+            updated_field = field_type(
+                id=target_field.id,
+                name=target_field.name,
+                value=field_value
+            )
+        
+        logger.info(f"Sending update with field: {updated_field}")
         
         # Send the update to YouTrack
         result = youtrack_client.update_issue_custom_field(
             issue_id=issue_id,
-            field=target_field
+            field=updated_field
         )
         
         return {

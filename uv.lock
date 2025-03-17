@@ -203,7 +203,7 @@ requires-dist = [
     { name = "uvicorn", specifier = ">=0.34.0" },
     { name = "youtrack-sdk", git = "https://github.com/moneymeets/youtrack-sdk.git" },
 ]
-provides-extras = ["dev"]
+provides-extras = ["dev", "interactive"]
 
 [[package]]
 name = "mdurl"

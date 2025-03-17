@@ -66,6 +66,46 @@ echo "YOUTRACK_TOKEN=your-permanent-token" >> .env
 uv run mcp-youtrack
 ```
 
+### Interactive Mode
+
+The MCP YouTrack server also provides an interactive command-line interface for debugging and exploring the YouTrack API:
+
+1. Install the package with development dependencies:
+```bash
+uv pip install -e ".[dev]"
+```
+
+2. Run the interactive client:
+```bash
+uv run mcp-youtrack --interactive
+```
+
+3. Alternatively, you can run the interactive client in direct mode, which uses the MCP server directly without subprocess calls:
+```bash
+uv run mcp-youtrack --interactive --direct
+```
+
+The interactive client provides the following commands:
+
+- `help`: Show help information
+- `issues <query>`: Search for issues using YouTrack query syntax
+- `issue <issue_id>`: Get detailed information about a specific issue
+- `fields <issue_id>`: Get custom fields for a specific issue
+- `comments <issue_id>`: Get comments for a specific issue
+- `comment <issue_id> <text>`: Add a comment to an issue
+- `update <issue_id> <field_id> <field_value>`: Update a field of an issue
+- `quit`: Exit the interactive client
+
+Example usage:
+```
+> issues project: DEMO #Unresolved
+> issue DEMO-123
+> fields DEMO-123
+> comments DEMO-123
+> comment DEMO-123 "This is a comment"
+> update DEMO-123 State "In Progress"
+```
+
 ## Architecture
 
 The MCP YouTrack server follows a simple architecture:
@@ -75,6 +115,7 @@ The MCP YouTrack server follows a simple architecture:
   - `main.py`: Entry point
   - `mock_env.py`: Configuration management
   - `mcp_server.py`: MCP server implementation with tool definitions
+  - `interactive.py`: Interactive command-line interface
 
 ### YouTrack Tools
 

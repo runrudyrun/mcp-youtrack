@@ -49,3 +49,6 @@ coverage.xml
 # Project specific
 *.log
 .uv/
+
+# Windsurf
+.windsurfrules
