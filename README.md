@@ -25,7 +25,7 @@ A Model Context Protocol (MCP) server for interacting with YouTrack issue tracki
 
 ## Overview
 
-This repository provides a Model Context Protocol (MCP) server for YouTrack integration. It uses the youtrack-sdk to interact with the YouTrack API and provides tools for common operations like querying issues, adding comments, and updating issue fields.
+This repository provides a Model Context Protocol (MCP) server for YouTrack integration. It uses the youtrack-sdk to interact with the YouTrack API and provides tools for common operations like querying issues, adding comments, updating issue fields, and retrieving detailed issue information.
 
 The server is designed to be:
 - **Efficient**: Optimized for common YouTrack operations
@@ -80,9 +80,15 @@ The MCP YouTrack server follows a simple architecture:
 
 The server provides the following tools for interacting with YouTrack:
 
+#### Basic Operations
 - `get_issues(query: str)`: Get issues matching a search query
 - `comment_issue(issue_id: str, text: str)`: Add a comment to an issue
 - `update_field(issue_id: str, field_id: str, field_value: Any)`: Update a field of an issue
+
+#### Issue Details (New)
+- `get_issue_details(issue_id: str)`: Get detailed information about a specific issue
+- `get_issue_custom_fields(issue_id: str)`: Get custom fields for a specific issue
+- `get_issue_comments(issue_id: str)`: Get comments for a specific issue
 
 ## Extending the Server
 
@@ -100,29 +106,17 @@ def create_issue(summary: str, description: str = None, project_id: str = None):
     return {"result": "Issue created successfully", "issue_id": new_issue.id}
 ```
 
-### 2. Update Tests
-
-Make sure to add tests for any new functionality:
-
-```python
-def test_create_issue_success(mock_youtrack_client):
-    # Setup mock
-    # ...
-    
-    # Execute
-    result = create_issue("Test issue", "Description", "TEST")
-    
-    # Verify
-    assert result["result"] == "Issue created successfully"
-    # ...
-```
-
 ## Testing
 
-The server includes comprehensive tests. Run tests with:
+The server includes comprehensive tests for all functionality:
 
 ```bash
+# Run all tests
 pytest
+
+# Run specific test files
+pytest tests/test_mcp_server.py
+pytest tests/test_issue_details.py
 ```
 
 ## Contributing
@@ -131,4 +125,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-This project is licensed under the Apache 2.0 License - see the LICENSE file for details.
+This project is licensed under the MIT License - see the LICENSE file for details.

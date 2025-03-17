@@ -13,6 +13,7 @@ class MockIssue(BaseModel):
     id_readable: Optional[str] = "PROJ-123"
     summary: Optional[str] = "Test issue"
     description: Optional[str] = "Test description"
+    wikified_description: Optional[str] = "<p>Test wikified description</p>"
     project: Optional[Dict[str, Any]] = {"id": "project-1", "name": "Test Project"}
     created: Optional[str] = "2023-01-01T12:00:00Z"
     updated: Optional[str] = "2023-01-02T12:00:00Z"
@@ -47,6 +48,7 @@ def test_get_issues_success(mock_youtrack_client):
     mock_issue.id_readable = "PROJ-123"
     mock_issue.summary = "Test issue"
     mock_issue.description = "Test description"
+    mock_issue.wikified_description = "<p>Test wikified description</p>"
     mock_issue.project.id = "project-1"
     mock_issue.project.name = "Test Project"
     mock_issue.created = "2023-01-01T12:00:00Z"

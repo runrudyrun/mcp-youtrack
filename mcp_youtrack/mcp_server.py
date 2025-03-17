@@ -15,7 +15,28 @@ from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel, Field
 
 from youtrack_sdk.client import Client
-from youtrack_sdk.entities import IssueComment, IssueCustomFieldType
+from youtrack_sdk.entities import IssueComment, Issue
+
+# Define custom field types to match the SDK
+class IssueCustomFieldType:
+    """Custom field types for YouTrack issues."""
+    SINGLE_ENUM = "enum"
+    MULTI_ENUM = "enum[]"
+    SINGLE_BUILD = "build"
+    MULTI_BUILD = "build[]"
+    STATE = "state"
+    SINGLE_VERSION = "version"
+    MULTI_VERSION = "version[]"
+    SINGLE_OWNED = "ownedField"
+    MULTI_OWNED = "ownedField[]"
+    SINGLE_USER = "user"
+    MULTI_USER = "user[]"
+    SINGLE_GROUP = "group"
+    MULTI_GROUP = "group[]"
+    SIMPLE = "simple"
+    DATE = "date"
+    PERIOD = "period"
+    TEXT = "text"
 
 MCP_SERVER_NAME = "mcp-youtrack"
 
@@ -61,10 +82,12 @@ class IssueResponse(BaseModel):
     id_readable: str
     summary: str
     description: Optional[str] = None
+    wikified_description: Optional[str] = None
     project: Optional[Dict[str, Any]] = None
     created: Optional[str] = None
     updated: Optional[str] = None
     reporter: Optional[Dict[str, Any]] = None
+    custom_fields: Optional[List[Dict[str, Any]]] = None
 
 
 @mcp.tool()
@@ -90,21 +113,298 @@ def get_issues(query: str) -> List[IssueResponse]:
         # Convert to response model
         result = []
         for issue in issues:
+            # Process custom fields if available
+            custom_fields_data = None
+            if hasattr(issue, 'custom_fields') and issue.custom_fields:
+                custom_fields_data = []
+                for field in issue.custom_fields:
+                    field_data = {
+                        "id": field.id,
+                        "name": field.name,
+                        "type": getattr(field, 'type', None),
+                        "value": getattr(field, 'value', None)
+                    }
+                    custom_fields_data.append(field_data)
+            
             issue_data = IssueResponse(
                 id=issue.id or "",
                 id_readable=issue.id_readable or "",
                 summary=issue.summary or "",
                 description=issue.description,
+                wikified_description=getattr(issue, 'wikified_description', None),
                 project={"id": issue.project.id, "name": issue.project.name} if issue.project else None,
                 created=str(issue.created) if issue.created else None,
                 updated=str(issue.updated) if issue.updated else None,
-                reporter={"name": issue.reporter.name, "login": issue.reporter.login} if issue.reporter else None
+                reporter={"name": issue.reporter.name, "login": issue.reporter.login} if issue.reporter else None,
+                custom_fields=custom_fields_data
             )
             result.append(issue_data)
         
         return result
     except Exception as e:
         logger.error(f"Error fetching issues: {e}")
+        return []
+
+
+class IssueDetailResponse(BaseModel):
+    id: str
+    id_readable: str
+    summary: str
+    description: Optional[str] = None
+    wikified_description: Optional[str] = None
+    project: Optional[Dict[str, Any]] = None
+    created: Optional[str] = None
+    updated: Optional[str] = None
+    resolved: Optional[str] = None
+    reporter: Optional[Dict[str, Any]] = None
+    updater: Optional[Dict[str, Any]] = None
+    comments_count: Optional[int] = None
+    tags: Optional[List[Dict[str, Any]]] = None
+    custom_fields: Optional[List[Dict[str, Any]]] = None
+    links: Optional[List[Dict[str, Any]]] = None
+
+
+@mcp.tool()
+def get_issue_details(issue_id: str) -> Optional[IssueDetailResponse]:
+    """Get detailed information about a specific YouTrack issue.
+    
+    Args:
+        issue_id: ID of the issue to fetch
+        
+    Returns:
+        IssueDetailResponse: Detailed information about the issue
+    """
+    logger.info(f"Fetching details for issue {issue_id}")
+    
+    if not youtrack_client:
+        logger.error("YouTrack client not initialized")
+        return None
+    
+    try:
+        # Get the issue with all details
+        issue = youtrack_client.get_issue(issue_id=issue_id)
+        
+        if not issue:
+            logger.warning(f"Issue {issue_id} not found")
+            return None
+        
+        # Process custom fields
+        custom_fields_data = None
+        if hasattr(issue, 'custom_fields') and issue.custom_fields:
+            custom_fields_data = []
+            for field in issue.custom_fields:
+                field_data = {
+                    "id": field.id,
+                    "name": field.name,
+                    "type": getattr(field, 'type', None),
+                }
+                
+                # Handle different field types
+                if hasattr(field, 'value'):
+                    if field.type in [IssueCustomFieldType.SINGLE_ENUM, IssueCustomFieldType.MULTI_ENUM]:
+                        if isinstance(field.value, list):
+                            field_data["value"] = [{"name": item.name, "id": item.id} for item in field.value if hasattr(item, 'name')]
+                        elif hasattr(field.value, 'name'):
+                            field_data["value"] = {"name": field.value.name, "id": field.value.id}
+                        else:
+                            field_data["value"] = str(field.value)
+                    elif field.type in [IssueCustomFieldType.SINGLE_USER, IssueCustomFieldType.MULTI_USER]:
+                        if isinstance(field.value, list):
+                            field_data["value"] = [{"name": user.name, "login": user.login} for user in field.value if hasattr(user, 'name')]
+                        elif hasattr(field.value, 'name'):
+                            field_data["value"] = {"name": field.value.name, "login": field.value.login}
+                        else:
+                            field_data["value"] = str(field.value)
+                    else:
+                        field_data["value"] = str(field.value)
+                
+                custom_fields_data.append(field_data)
+        
+        # Get issue links
+        links_data = None
+        try:
+            links = youtrack_client.get_issue_links(issue_id=issue_id)
+            if links:
+                links_data = []
+                for link in links:
+                    link_data = {
+                        "type": {"name": link.type.name, "id": link.type.id} if hasattr(link, 'type') and link.type else None,
+                        "direction": getattr(link, 'direction', None),
+                        "issues": []
+                    }
+                    
+                    if hasattr(link, 'issues') and link.issues:
+                        for linked_issue in link.issues:
+                            link_data["issues"].append({
+                                "id": linked_issue.id,
+                                "id_readable": linked_issue.id_readable,
+                                "summary": linked_issue.summary
+                            })
+                    
+                    links_data.append(link_data)
+        except Exception as e:
+            logger.warning(f"Error fetching issue links: {e}")
+        
+        # Process tags
+        tags_data = None
+        if hasattr(issue, 'tags') and issue.tags:
+            tags_data = []
+            for tag in issue.tags:
+                tag_data = {
+                    "name": tag.name,
+                    "id": tag.id
+                }
+                tags_data.append(tag_data)
+        
+        # Create response
+        response = IssueDetailResponse(
+            id=issue.id or "",
+            id_readable=issue.id_readable or "",
+            summary=issue.summary or "",
+            description=issue.description,
+            wikified_description=getattr(issue, 'wikified_description', None),
+            project={"id": issue.project.id, "name": issue.project.name} if issue.project else None,
+            created=str(issue.created) if issue.created else None,
+            updated=str(issue.updated) if issue.updated else None,
+            resolved=str(issue.resolved) if hasattr(issue, 'resolved') and issue.resolved else None,
+            reporter={"name": issue.reporter.name, "login": issue.reporter.login} if issue.reporter else None,
+            updater={"name": issue.updater.name, "login": issue.updater.login} if hasattr(issue, 'updater') and issue.updater else None,
+            comments_count=issue.comments_count if hasattr(issue, 'comments_count') else None,
+            tags=tags_data,
+            custom_fields=custom_fields_data,
+            links=links_data
+        )
+        
+        return response
+    except Exception as e:
+        logger.error(f"Error fetching issue details: {e}")
+        return None
+
+
+class CustomFieldResponse(BaseModel):
+    id: str
+    name: str
+    type: Optional[str] = None
+    value: Optional[Any] = None
+
+
+@mcp.tool()
+def get_issue_custom_fields(issue_id: str) -> List[CustomFieldResponse]:
+    """Get custom fields for a specific YouTrack issue.
+    
+    Args:
+        issue_id: ID of the issue to fetch custom fields for
+        
+    Returns:
+        List[CustomFieldResponse]: List of custom fields for the issue
+    """
+    logger.info(f"Fetching custom fields for issue {issue_id}")
+    
+    if not youtrack_client:
+        logger.error("YouTrack client not initialized")
+        return []
+    
+    try:
+        # Get the custom fields for the issue
+        custom_fields = youtrack_client.get_issue_custom_fields(issue_id=issue_id)
+        
+        if not custom_fields:
+            logger.warning(f"No custom fields found for issue {issue_id}")
+            return []
+        
+        # Convert to response model
+        result = []
+        for field in custom_fields:
+            field_value = None
+            
+            # Handle different field types
+            if hasattr(field, 'value') and field.value is not None:
+                if field.type in [IssueCustomFieldType.SINGLE_ENUM, IssueCustomFieldType.MULTI_ENUM]:
+                    if isinstance(field.value, list):
+                        field_value = [{"name": item.name, "id": item.id} for item in field.value if hasattr(item, 'name')]
+                    elif hasattr(field.value, 'name'):
+                        field_value = {"name": field.value.name, "id": field.value.id}
+                    else:
+                        field_value = str(field.value)
+                elif field.type in [IssueCustomFieldType.SINGLE_USER, IssueCustomFieldType.MULTI_USER]:
+                    if isinstance(field.value, list):
+                        field_value = [{"name": user.name, "login": user.login} for user in field.value if hasattr(user, 'name')]
+                    elif hasattr(field.value, 'name'):
+                        field_value = {"name": field.value.name, "login": field.value.login}
+                    else:
+                        field_value = str(field.value)
+                elif field.type == IssueCustomFieldType.DATE:
+                    field_value = str(field.value)
+                elif field.type == IssueCustomFieldType.PERIOD:
+                    field_value = str(field.value)
+                else:
+                    field_value = str(field.value)
+            
+            field_data = CustomFieldResponse(
+                id=field.id,
+                name=field.name,
+                type=field.type if hasattr(field, 'type') else None,
+                value=field_value
+            )
+            result.append(field_data)
+        
+        return result
+    except Exception as e:
+        logger.error(f"Error fetching custom fields: {e}")
+        return []
+
+
+class CommentResponse(BaseModel):
+    id: str
+    text: str
+    text_preview: Optional[str] = None
+    created: Optional[str] = None
+    updated: Optional[str] = None
+    author: Optional[Dict[str, Any]] = None
+    deleted: Optional[bool] = None
+
+
+@mcp.tool()
+def get_issue_comments(issue_id: str) -> List[CommentResponse]:
+    """Get comments for a specific YouTrack issue.
+    
+    Args:
+        issue_id: ID of the issue to fetch comments for
+        
+    Returns:
+        List[CommentResponse]: List of comments for the issue
+    """
+    logger.info(f"Fetching comments for issue {issue_id}")
+    
+    if not youtrack_client:
+        logger.error("YouTrack client not initialized")
+        return []
+    
+    try:
+        # Get the comments for the issue
+        comments = youtrack_client.get_issue_comments(issue_id=issue_id)
+        
+        if not comments:
+            logger.warning(f"No comments found for issue {issue_id}")
+            return []
+        
+        # Convert to response model
+        result = []
+        for comment in comments:
+            comment_data = CommentResponse(
+                id=comment.id or "",
+                text=comment.text or "",
+                text_preview=getattr(comment, 'text_preview', None),
+                created=str(comment.created) if comment.created else None,
+                updated=str(comment.updated) if hasattr(comment, 'updated') and comment.updated else None,
+                author={"name": comment.author.name, "login": comment.author.login} if comment.author else None,
+                deleted=comment.deleted if hasattr(comment, 'deleted') else None
+            )
+            result.append(comment_data)
+        
+        return result
+    except Exception as e:
+        logger.error(f"Error fetching comments: {e}")
         return []
 
 
