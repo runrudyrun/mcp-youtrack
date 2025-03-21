@@ -42,6 +42,7 @@ class SSEServerTransport(SseServerTransport):
         logger.debug(f"Received JSON: {json}")
 
         if json["method"] == "tools/call":
+            json["params"].setdefault("_meta", {})
             json["params"]["_meta"]["youtrack_url"] = request.headers.get(
                 "x-youtrack-url"
             )
