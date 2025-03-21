@@ -8,17 +8,21 @@ import atexit
 import concurrent.futures
 import logging
 import os
+from typing import Any
+from typing import Optional, List, Dict
+
 from dotenv import load_dotenv
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp.server import Context
+from mcp_youtrack.mcp_server_class import MCPServer
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
 from youtrack_sdk.client import Client
-from youtrack_sdk.entities import IssueComment, Issue
+from youtrack_sdk.entities import IssueComment
 
 
 # Define custom field types to match the SDK
 class IssueCustomFieldType:
     """Custom field types for YouTrack issues."""
+
     SINGLE_ENUM = "enum"
     MULTI_ENUM = "enum[]"
     SINGLE_BUILD = "build"
@@ -36,6 +40,7 @@ class IssueCustomFieldType:
     DATE = "date"
     PERIOD = "period"
     TEXT = "text"
+
 
 MCP_SERVER_NAME = "mcp-youtrack"
 
@@ -55,16 +60,19 @@ load_dotenv()
 YOUTRACK_URL = os.getenv("YOUTRACK_URL")
 YOUTRACK_TOKEN = os.getenv("YOUTRACK_TOKEN")
 
-def get_youtrack_client(youtrack_url: str, youtrack_token: str) -> Client | None:
+
+def get_youtrack_client(ctx: Context) -> Client | None:
     """Get YouTrack client instance.
     
     Args:
-        youtrack_url: Base URL of the YouTrack instance
-        youtrack_token: Permanent token for YouTrack API access
+        ctx: MCP context containing request metadata
         
     Returns:
         Client: YouTrack client instance
     """
+    youtrack_url = ctx.request_context.meta.model_extra.get('youtrack_url') or YOUTRACK_URL
+    youtrack_token = ctx.request_context.meta.model_extra.get('youtrack_token') or YOUTRACK_TOKEN
+
     if youtrack_url and youtrack_token:
         try:
             youtrack_client = Client(base_url=youtrack_url, token=youtrack_token)
@@ -85,7 +93,7 @@ deps = [
     "youtrack-sdk",
 ]
 
-mcp = FastMCP(MCP_SERVER_NAME, dependencies=deps)
+mcp = MCPServer(MCP_SERVER_NAME, dependencies=deps)
 
 
 class IssueResponse(BaseModel):
@@ -102,20 +110,18 @@ class IssueResponse(BaseModel):
 
 
 @mcp.tool()
-def get_issues(query: str, youtrack_url: str = YOUTRACK_URL, youtrack_token: str = YOUTRACK_TOKEN) -> List[IssueResponse]:
+def get_issues(query: str, ctx: Context) -> List[IssueResponse]:
     """Get YouTrack issues based on a search query.
     
     Args:
         query: YouTrack search query string
-        youtrack_url: YouTrack API URL
-        youtrack_token: YouTrack API token
-        
+
     Returns:
         List[IssueResponse]: List of issues matching the query
     """
     logger.info(f"Searching for issues with query: {query}")
 
-    if not (youtrack_client:= get_youtrack_client(youtrack_url, youtrack_token)):
+    if not (youtrack_client := get_youtrack_client(ctx)):
         logger.error("YouTrack client not initialized")
         return []
     
@@ -178,20 +184,18 @@ class IssueDetailResponse(BaseModel):
 
 
 @mcp.tool()
-def get_issue_details(issue_id: str, youtrack_url: str = YOUTRACK_URL, youtrack_token: str = YOUTRACK_TOKEN) -> Optional[IssueDetailResponse]:
+def get_issue_details(issue_id: str, ctx: Context) -> Optional[IssueDetailResponse]:
     """Get detailed information about a specific YouTrack issue.
     
     Args:
         issue_id: ID of the issue to fetch
-        youtrack_url: YouTrack API URL
-        youtrack_token: YouTrack API token
-        
+
     Returns:
         IssueDetailResponse: Detailed information about the issue
     """
     logger.info(f"Fetching details for issue {issue_id}")
 
-    if not (youtrack_client:= get_youtrack_client(youtrack_url, youtrack_token)):
+    if not (youtrack_client := get_youtrack_client(ctx)):
         logger.error("YouTrack client not initialized")
         return None
     
@@ -304,20 +308,18 @@ class CustomFieldResponse(BaseModel):
 
 
 @mcp.tool()
-def get_issue_custom_fields(issue_id: str, youtrack_url: str = YOUTRACK_URL, youtrack_token: str = YOUTRACK_TOKEN) -> List[CustomFieldResponse]:
+def get_issue_custom_fields(issue_id: str, ctx: Context) -> List[CustomFieldResponse]:
     """Get custom fields for a specific YouTrack issue.
     
     Args:
         issue_id: ID of the issue to fetch custom fields for
-        youtrack_url: YouTrack API URL
-        youtrack_token: YouTrack API token
-        
+
     Returns:
         List[CustomFieldResponse]: List of custom fields for the issue
     """
     logger.info(f"Fetching custom fields for issue {issue_id}")
 
-    if not (youtrack_client:= get_youtrack_client(youtrack_url, youtrack_token)):
+    if not (youtrack_client := get_youtrack_client(ctx)):
         logger.error("YouTrack client not initialized")
         return []
     
@@ -382,20 +384,18 @@ class CommentResponse(BaseModel):
 
 
 @mcp.tool()
-def get_issue_comments(issue_id: str, youtrack_url: str = YOUTRACK_URL, youtrack_token: str = YOUTRACK_TOKEN) -> List[CommentResponse]:
+def get_issue_comments(issue_id: str, ctx: Context) -> List[CommentResponse]:
     """Get comments for a specific YouTrack issue.
     
     Args:
         issue_id: ID of the issue to fetch comments for
-        youtrack_url: YouTrack API URL
-        youtrack_token: YouTrack API token
-        
+
     Returns:
         List[CommentResponse]: List of comments for the issue
     """
     logger.info(f"Fetching comments for issue {issue_id}")
-    
-    if not (youtrack_client:= get_youtrack_client(youtrack_url, youtrack_token)):
+
+    if not (youtrack_client := get_youtrack_client(ctx)):
         logger.error("YouTrack client not initialized")
         return []
     
@@ -433,21 +433,19 @@ class CommentIssueRequest(BaseModel):
 
 
 @mcp.tool()
-def comment_issue(issue_id: str, text: str, youtrack_url: str = YOUTRACK_URL, youtrack_token: str = YOUTRACK_TOKEN) -> Dict[str, Any]:
+def comment_issue(issue_id: str, text: str, ctx: Context) -> Dict[str, Any]:
     """Create a comment on a YouTrack issue.
     
     Args:
         issue_id: ID of the issue to comment on
         text: Comment text
-        youtrack_url: YouTrack API URL
-        youtrack_token: YouTrack API token
-        
+
     Returns:
         Dict: Information about the created comment
     """
     logger.info(f"Adding comment to issue {issue_id}")
 
-    if not (youtrack_client:= get_youtrack_client(youtrack_url, youtrack_token)):
+    if not (youtrack_client := get_youtrack_client(ctx)):
         logger.error("YouTrack client not initialized")
         return {"success": False, "error": "YouTrack client not initialized"}
     
@@ -474,22 +472,20 @@ class UpdateFieldRequest(BaseModel):
 
 
 @mcp.tool()
-def update_field(issue_id: str, field_id: str, field_value: Any, youtrack_url: str = YOUTRACK_URL, youtrack_token: str = YOUTRACK_TOKEN) -> Dict[str, Any]:
+def update_field(issue_id: str, field_id: str, field_value: Any, ctx: Context) -> Dict[str, Any]:
     """Update a field of a YouTrack issue.
     
     Args:
         issue_id: ID of the issue to update
         field_id: ID of the custom field to update
         field_value: New value for the field
-        youtrack_url: YouTrack API URL
-        youtrack_token: YouTrack API token
-        
+
     Returns:
         Dict: Information about the update operation
     """
     logger.info(f"Updating field {field_id} for issue {issue_id}")
 
-    if not (youtrack_client:= get_youtrack_client(youtrack_url, youtrack_token)):
+    if not (youtrack_client := get_youtrack_client(ctx)):
         logger.error("YouTrack client not initialized")
         return {"success": False, "error": "YouTrack client not initialized"}
     
