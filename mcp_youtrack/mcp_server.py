@@ -91,16 +91,17 @@ class IssueResponse(BaseModel):
 
 
 @mcp.tool()
-def get_issues(query: str) -> List[IssueResponse]:
+def get_issues(query: str, limit: int = 5) -> List[IssueResponse]:
     """Get YouTrack issues based on a search query.
     
     Args:
         query: YouTrack search query string
+        limit: Maximum number of issues to return (default: 5)
         
     Returns:
         List[IssueResponse]: List of issues matching the query
     """
-    logger.info(f"Searching for issues with query: {query}")
+    logger.info(f"Searching for issues with query: {query}, limit: {limit}")
     
     if not youtrack_client:
         logger.error("YouTrack client not initialized")
@@ -112,7 +113,7 @@ def get_issues(query: str) -> List[IssueResponse]:
         
         # Convert to response model
         result = []
-        for issue in issues:
+        for issue in issues[:limit]:
             # Process custom fields if available
             custom_fields_data = None
             if hasattr(issue, 'custom_fields') and issue.custom_fields:
