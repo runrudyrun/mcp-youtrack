@@ -5,7 +5,7 @@ from unittest.mock import patch, MagicMock
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 
-from mcp_youtrack.mcp_server import get_issues, comment_issue, update_field, IssueResponse
+from mcp_youtrack.mcp_server import get_issues, comment_issue, update_field, IssueResponse, remove_issue_tags
 
 
 class MockIssue(BaseModel):
@@ -31,6 +31,11 @@ class MockField(BaseModel):
     id: Optional[str] = "field-123"
     name: Optional[str] = "Priority"
     value: Optional[Any] = "High"
+
+
+class MockTag(BaseModel):
+    id: Optional[str] = "tag-123"
+    name: Optional[str] = "bug"
 
 
 @pytest.fixture
@@ -200,6 +205,107 @@ def test_update_field_exception(mock_youtrack_client):
     
     # Execute
     result = update_field("issue-123", "field-123", "High")
+    
+    # Verify
+    assert result["success"] is False
+    assert result["error"] == "Test error"
+
+
+def test_remove_issue_tags_success(mock_youtrack_client):
+    """Test successful tag removal."""
+    # Setup mocks
+    mock_tag1 = MagicMock()
+    mock_tag1.id = "tag-123"
+    mock_tag1.name = "bug"
+    
+    mock_tag2 = MagicMock()
+    mock_tag2.id = "tag-456"
+    mock_tag2.name = "feature"
+    
+    mock_issue = MagicMock()
+    mock_issue.tags = [mock_tag1, mock_tag2]
+    
+    mock_youtrack_client.get_issue.return_value = mock_issue
+    
+    # Execute
+    result = remove_issue_tags("issue-123", ["bug"])
+    
+    # Verify
+    assert result["success"] is True
+    assert result["issue_id"] == "issue-123"
+    assert "bug" in result["removed_tags"]
+    assert len(result["removed_tags"]) == 1
+    mock_youtrack_client.add_issue_tag.assert_called_once()
+    # Check that it was called with the correct parameters
+    call_args = mock_youtrack_client.add_issue_tag.call_args
+    assert call_args[1]["issue_id"] == "issue-123"
+    assert call_args[1]["tag"].id == "tag-123"
+    assert call_args[1]["tag"].name == "bug"
+    assert call_args[1]["remove"] is True
+
+
+def test_remove_issue_tags_nonexistent_tag(mock_youtrack_client):
+    """Test removing a tag that doesn't exist on the issue."""
+    # Setup mocks
+    mock_tag = MagicMock()
+    mock_tag.id = "tag-123"
+    mock_tag.name = "bug"
+    
+    mock_issue = MagicMock()
+    mock_issue.tags = [mock_tag]
+    
+    mock_youtrack_client.get_issue.return_value = mock_issue
+    
+    # Execute
+    result = remove_issue_tags("issue-123", ["feature"])
+    
+    # Verify
+    assert result["success"] is True
+    assert result["issue_id"] == "issue-123"
+    assert len(result["removed_tags"]) == 0
+    assert "feature" in result["skipped_tags"]
+    mock_youtrack_client.add_issue_tag.assert_not_called()
+
+
+def test_remove_issue_tags_no_tags(mock_youtrack_client):
+    """Test removing tags from an issue with no tags."""
+    # Setup mocks
+    mock_issue = MagicMock()
+    mock_issue.tags = []
+    
+    mock_youtrack_client.get_issue.return_value = mock_issue
+    
+    # Execute
+    result = remove_issue_tags("issue-123", ["bug"])
+    
+    # Verify
+    assert result["success"] is True
+    assert result["issue_id"] == "issue-123"
+    assert len(result["removed_tags"]) == 0
+    assert "bug" in result["skipped_tags"]
+    mock_youtrack_client.add_issue_tag.assert_not_called()
+
+
+def test_remove_issue_tags_client_not_initialized(mock_youtrack_client):
+    """Test remove_issue_tags when client is not initialized."""
+    # Setup mock
+    mock_youtrack_client.__bool__.return_value = False
+    
+    # Execute
+    result = remove_issue_tags("issue-123", ["bug"])
+    
+    # Verify
+    assert result["success"] is False
+    assert "error" in result
+
+
+def test_remove_issue_tags_exception(mock_youtrack_client):
+    """Test remove_issue_tags when an exception occurs."""
+    # Setup mock
+    mock_youtrack_client.get_issue.side_effect = Exception("Test error")
+    
+    # Execute
+    result = remove_issue_tags("issue-123", ["bug"])
     
     # Verify
     assert result["success"] is False

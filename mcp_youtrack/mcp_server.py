@@ -15,7 +15,7 @@ from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel, Field
 
 from youtrack_sdk.client import Client
-from youtrack_sdk.entities import IssueComment, Issue
+from youtrack_sdk.entities import IssueComment, Issue, Tag
 
 # Define custom field types to match the SDK
 class IssueCustomFieldType:
@@ -541,4 +541,72 @@ def update_field(issue_id: str, field_id: str, field_value: Any) -> Dict[str, An
         }
     except Exception as e:
         logger.error(f"Error updating field: {e}")
+        return {"success": False, "error": str(e)}
+
+
+class SetIssueTagsRequest(BaseModel):
+    issue_id: str = Field(..., description="ID of the issue to set tags for")
+    tags: List[str] = Field(..., description="List of tag names to add to the issue")
+
+
+@mcp.tool()
+def set_issue_tags(issue_id: str, tags: List[str]) -> Dict[str, Any]:
+    """Set tags for a specific YouTrack issue.
+    
+    Args:
+        issue_id: ID of the issue to set tags for
+        tags: List of tag names to add to the issue
+        
+    Returns:
+        Dict: Information about the operation result
+    """
+    logger.info(f"Setting tags {tags} for issue {issue_id}")
+    
+    if not youtrack_client:
+        logger.error("YouTrack client not initialized")
+        return {"success": False, "error": "YouTrack client not initialized"}
+    
+    try:
+        # Get existing tags to avoid duplicates
+        issue = youtrack_client.get_issue(issue_id=issue_id)
+        existing_tags = set()
+        
+        if hasattr(issue, 'tags') and issue.tags:
+            existing_tags = {tag.name for tag in issue.tags if hasattr(tag, 'name') and tag.name}
+        
+        # Get all available tags from YouTrack
+        all_tags = youtrack_client.get_tags()
+        all_tags_dict = {tag.name: tag for tag in all_tags if hasattr(tag, 'name') and tag.name}
+        
+        # Track added tags
+        added_tags = []
+        
+        # Add each tag that doesn't already exist on the issue
+        for tag_name in tags:
+            if tag_name in existing_tags:
+                logger.info(f"Tag '{tag_name}' already exists on issue {issue_id}")
+                continue
+                
+            # Check if the tag exists in YouTrack
+            if tag_name in all_tags_dict:
+                tag = all_tags_dict[tag_name]
+            else:
+                # If the tag doesn't exist in the system, we can't add it
+                logger.warning(f"Tag '{tag_name}' doesn't exist in YouTrack")
+                continue
+                
+            # Add the tag to the issue
+            tag_entity = Tag(id=tag.id, name=tag.name)
+            youtrack_client.add_issue_tag(issue_id=issue_id, tag=tag_entity)
+            added_tags.append(tag_name)
+            logger.info(f"Added tag '{tag_name}' to issue {issue_id}")
+        
+        return {
+            "success": True,
+            "issue_id": issue_id,
+            "added_tags": added_tags,
+            "skipped_tags": [tag for tag in tags if tag not in added_tags]
+        }
+    except Exception as e:
+        logger.error(f"Error setting tags: {e}")
         return {"success": False, "error": str(e)}
