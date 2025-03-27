@@ -356,6 +356,7 @@ def get_issue_custom_fields(issue_id: str) -> List[CustomFieldResponse]:
 
 
 class CommentResponse(BaseModel):
+    issue_id: str
     id: str
     text: str
     text_preview: Optional[str] = None
