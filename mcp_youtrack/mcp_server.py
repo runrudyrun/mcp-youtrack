@@ -393,8 +393,8 @@ def get_issue_comments(issue_id: str) -> List[CommentResponse]:
         result = []
         for comment in comments:
             comment_data = CommentResponse(
-                id=comment.id or "",
                 issue_id=issue_id or "",
+                id=comment.id or "",
                 text=comment.text or "",
                 text_preview=getattr(comment, 'text_preview', None),
                 created=str(comment.created) if comment.created else None,
