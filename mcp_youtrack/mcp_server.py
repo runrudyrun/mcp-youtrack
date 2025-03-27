@@ -611,3 +611,67 @@ def set_issue_tags(issue_id: str, tags: List[str]) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Error setting tags: {e}")
         return {"success": False, "error": str(e)}
+
+
+class RemoveIssueTagsRequest(BaseModel):
+    issue_id: str = Field(..., description="ID of the issue to remove tags from")
+    tags: List[str] = Field(..., description="List of tag names to remove from the issue")
+
+
+@mcp.tool()
+def remove_issue_tags(issue_id: str, tags: List[str]) -> Dict[str, Any]:
+    """Remove tags from a specific YouTrack issue.
+    
+    Args:
+        issue_id: ID of the issue to remove tags from
+        tags: List of tag names to remove from the issue
+        
+    Returns:
+        Dict: Information about the operation result
+    """
+    logger.info(f"Removing tags {tags} from issue {issue_id}")
+    
+    if not youtrack_client:
+        logger.error("YouTrack client not initialized")
+        return {"success": False, "error": "YouTrack client not initialized"}
+    
+    try:
+        # Get existing tags
+        issue = youtrack_client.get_issue(issue_id=issue_id)
+        
+        if not hasattr(issue, 'tags') or not issue.tags:
+            logger.info(f"Issue {issue_id} has no tags to remove")
+            return {
+                "success": True,
+                "issue_id": issue_id,
+                "removed_tags": [],
+                "skipped_tags": tags
+            }
+        
+        # Get existing tag objects
+        existing_tags = {tag.name: tag for tag in issue.tags if hasattr(tag, 'name') and tag.name}
+        
+        # Track removed tags
+        removed_tags = []
+        
+        # Remove each tag that exists on the issue
+        for tag_name in tags:
+            if tag_name not in existing_tags:
+                logger.info(f"Tag '{tag_name}' doesn't exist on issue {issue_id}")
+                continue
+                
+            # Remove the tag from the issue
+            tag = existing_tags[tag_name]
+            youtrack_client.remove_issue_tag(issue_id=issue_id, tag_id=tag.id)
+            removed_tags.append(tag_name)
+            logger.info(f"Removed tag '{tag_name}' from issue {issue_id}")
+        
+        return {
+            "success": True,
+            "issue_id": issue_id,
+            "removed_tags": removed_tags,
+            "skipped_tags": [tag for tag in tags if tag not in removed_tags]
+        }
+    except Exception as e:
+        logger.error(f"Error removing tags: {e}")
+        return {"success": False, "error": str(e)}
