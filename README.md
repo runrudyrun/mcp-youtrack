@@ -9,15 +9,19 @@ A Model Context Protocol (MCP) server for interacting with YouTrack issue tracki
 {
   "mcpServers": {
     "mcp-youtrack": {
-      "command": "{PATH_TO_MCP_YOUTRACK}/mcp-youtrack/.venv/bin/mcp-youtrack",
+      "command": "uv",
       "args": [
         "run",
         "--with",
-        "mcp-youtrack",
+        "git+https://github.com/RageAgainstTheMachine101/mcp-youtrack.git",
         "--python",
         "3.13",
         "mcp-youtrack"
-      ]
+      ],
+      "env": {
+        "YOUTRACK_URL": "{BASE_URL}/youtrack",
+        "YOUTRACK_TOKEN": "{TOKEN}"
+      }
     }
   }
 }
