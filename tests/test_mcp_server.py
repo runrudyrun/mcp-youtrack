@@ -235,7 +235,13 @@ def test_remove_issue_tags_success(mock_youtrack_client):
     assert result["issue_id"] == "issue-123"
     assert "bug" in result["removed_tags"]
     assert len(result["removed_tags"]) == 1
-    mock_youtrack_client.remove_issue_tag.assert_called_once_with(issue_id="issue-123", tag_id="tag-123")
+    mock_youtrack_client.add_issue_tag.assert_called_once()
+    # Check that it was called with the correct parameters
+    call_args = mock_youtrack_client.add_issue_tag.call_args
+    assert call_args[1]["issue_id"] == "issue-123"
+    assert call_args[1]["tag"].id == "tag-123"
+    assert call_args[1]["tag"].name == "bug"
+    assert call_args[1]["remove"] is True
 
 
 def test_remove_issue_tags_nonexistent_tag(mock_youtrack_client):
@@ -258,7 +264,7 @@ def test_remove_issue_tags_nonexistent_tag(mock_youtrack_client):
     assert result["issue_id"] == "issue-123"
     assert len(result["removed_tags"]) == 0
     assert "feature" in result["skipped_tags"]
-    mock_youtrack_client.remove_issue_tag.assert_not_called()
+    mock_youtrack_client.add_issue_tag.assert_not_called()
 
 
 def test_remove_issue_tags_no_tags(mock_youtrack_client):
@@ -277,7 +283,7 @@ def test_remove_issue_tags_no_tags(mock_youtrack_client):
     assert result["issue_id"] == "issue-123"
     assert len(result["removed_tags"]) == 0
     assert "bug" in result["skipped_tags"]
-    mock_youtrack_client.remove_issue_tag.assert_not_called()
+    mock_youtrack_client.add_issue_tag.assert_not_called()
 
 
 def test_remove_issue_tags_client_not_initialized(mock_youtrack_client):
